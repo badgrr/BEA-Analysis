@@ -1,0 +1,132 @@
+---
+title: "FProj Analysis"
+author: "BadgerBOI, DirtyToeKnee"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+```{r echo=FALSE}
+# Ensure all necessary packages are installed before doing anything else.
+packages.list = c("formatR", "knitr", "glmnet", "pls", "boot")
+packages.new = packages.list[!(packages.list %in% installed.packages()[,"Package"])]
+if(length(packages.new)){
+  install.packages(packages.new)
+}
+```
+
+```{r echo=FALSE}
+library(formatR)
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+```{r}
+# Load CSV into data frame
+
+SPY = read.csv(file="SPY.csv", header=T, sep=",")
+
+# Drop date column and cast SPY
+drop = c("date")
+SPY = SPY[ , !(names(SPY) %in% drop)]
+
+# Summarize inputs - sanity check
+summary(SPY)
+```
+
+How does this dataset look?
+
+```{r}
+pairs(SPY)
+
+boxplot(volume ~ close, data=SPY, main = "Volume v Close")
+boxplot(open ~ close, data=SPY, main = "Open v Close")
+boxplot(high ~ close, data=SPY, main = "High v Close")
+boxplot(low ~ close, data=SPY, main = "Low v Close")
+boxplot(adjclose ~ close, data=SPY, main = "AdjClose v Close")
+boxplot(T10Y2Y ~ close, data=SPY, main = "T10Y2Y v Close")
+```
+
+I have no idea what these boxplots mean. The plan is to throw a ton of different techniques at this and figure out what works best. Starting with basic stuff and moving forward.
+
+```{r}
+set.seed(1997)
+
+# 65/35 test train split
+sample <- sample(nrow(SPY), nrow(SPY)*.65, replace=F)
+
+SPY.train <- SPY[sample,]
+SPY.test <- SPY[-sample,]
+```
+
+Standard linear model:
+
+```{r}
+SPY.lm <- lm(close ~ ., data=SPY.train)
+SPY.lm.preds <- predict(SPY.lm, SPY.test)
+
+mean((SPY.lm.preds - SPY.test$close)^2) #MSE
+```
+
+We attain an MSE of $.3527$.
+
+Ridge regression with optimal $\lambda$.
+
+```{r}
+SPY.test.AsMatrix <- model.matrix(close ~ ., data=SPY.test)
+SPY.train.AsMatrix <- model.matrix(close ~ ., data=SPY.train)
+
+lambdaVal <- 10^seq(4,-2,length=100)
+
+require(glmnet)
+
+SPY.ridgeReg <- glmnet(SPY.train.AsMatrix, SPY.train$close, alpha=0, lambda=lambdaVal, thresh=1e-10)
+SPY.crossRidge <- cv.glmnet(SPY.train.AsMatrix, SPY.train$close, alpha=0, lambda=lambdaVal, thresh=1e-10)
+
+optimalLambda <- SPY.crossRidge$lambda.min
+ridgePreds <- predict(SPY.ridgeReg, s=optimalLambda, newx=SPY.test.AsMatrix)
+
+mean((ridgePreds - SPY.test$close)^2) #Get Ridge MSE
+```
+
+This gives an MSE of $.535$. Maybe a PCR model?
+
+```{r}
+require(pls)
+
+SPY.pcr <- pcr(close ~ ., data=SPY.train, scale=TRUE, validation="CV")
+SPY.pcr.preds <- predict(SPY.pcr, SPY.test, ncomp=6)
+
+mean((SPY.pcr.preds - SPY.test$close)^2)
+```
+
+MSE of $.287$. We can also try polynomial models of varying degree to see if there are any particular degrees for which polynomials in our predictors obtain optimal MSE
+
+```{r}
+library(boot)
+
+#List of error values for our polynomial models
+SPY.polys.error = c()
+# List of polynomial models
+SPY.polys = list()
+
+for(deg in 1:4){
+  polynomialModel = glm(close ~ poly(volume, open, high, low, adjclose, T10Y2Y, degree=deg, raw=T), data=SPY)
+  error = cv.glm(polynomialModel, data=SPY, K=10)$delta[1]
+  SPY.polys.error = c(SPY.polys.error, error)
+  
+  SPY.polys[[deg]] = polynomialModel
+  names(SPY.polys)[deg] = paste0("m", deg)
+}
+
+plot(SPY.polys.error, xlab="Degree", ylab='Cross Error', type='l')
+minimum = which.min(SPY.polys.error)
+
+points(minimum, SPY.polys.error[minimum], pch=20, col='blue')
+
+SPY.polys.error[minimum]
+```
+
+We have an optimal degree of $3$, which gives us an error of $.276$.
