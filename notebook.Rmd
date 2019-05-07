@@ -49,7 +49,13 @@ boxplot(adjclose ~ close, data=SPY, main = "AdjClose v Close")
 boxplot(T10Y2Y ~ close, data=SPY, main = "T10Y2Y v Close")
 ```
 
-I have no idea what these boxplots mean. The plan is to throw a ton of different techniques at this and figure out what works best. Starting with basic stuff and moving forward.
+I have no idea what these boxplots mean. Correlation matrix?
+
+```{r}
+cor(SPY)
+```
+
+The plan is to throw a ton of different techniques at this and figure out what works best. Starting with basic stuff and moving forward.
 
 ```{r}
 set.seed(1997)
@@ -112,6 +118,7 @@ SPY.polys.error = c()
 # List of polynomial models
 SPY.polys = list()
 
+# Construct models in degrees 1 through 4
 for(deg in 1:4){
   polynomialModel = glm(close ~ poly(volume, open, high, low, adjclose, T10Y2Y, degree=deg, raw=T), data=SPY)
   error = cv.glm(polynomialModel, data=SPY, K=10)$delta[1]
@@ -130,3 +137,4 @@ SPY.polys.error[minimum]
 ```
 
 We have an optimal degree of $3$, which gives us an error of $.276$.
+
