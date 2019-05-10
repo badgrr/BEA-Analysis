@@ -39,14 +39,16 @@ summary(SPY)
 How does this dataset look?
 
 ```{r}
+png("plot.png")
 pairs(SPY)
+dev.off()
 
-boxplot(volume ~ close, data=SPY, main = "Volume v Close")
-boxplot(open ~ close, data=SPY, main = "Open v Close")
-boxplot(high ~ close, data=SPY, main = "High v Close")
-boxplot(low ~ close, data=SPY, main = "Low v Close")
-boxplot(adjclose ~ close, data=SPY, main = "AdjClose v Close")
-boxplot(T10Y2Y ~ close, data=SPY, main = "T10Y2Y v Close")
+#boxplot(volume ~ close, data=SPY, main = "Volume v Close")
+#boxplot(open ~ close, data=SPY, main = "Open v Close")
+#boxplot(high ~ close, data=SPY, main = "High v Close")
+#boxplot(low ~ close, data=SPY, main = "Low v Close")
+#boxplot(adjclose ~ close, data=SPY, main = "AdjClose v Close")
+#boxplot(T10Y2Y ~ close, data=SPY, main = "T10Y2Y v Close")
 ```
 
 I have no idea what these boxplots mean. Correlation matrix?
@@ -128,10 +130,12 @@ for(deg in 1:4){
   names(SPY.polys)[deg] = paste0("m", deg)
 }
 
+png('minDegree.png')
 plot(SPY.polys.error, xlab="Degree", ylab='Cross Error', type='l')
 minimum = which.min(SPY.polys.error)
 
 points(minimum, SPY.polys.error[minimum], pch=20, col='blue')
+dev.off()
 
 SPY.polys.error[minimum]
 ```
